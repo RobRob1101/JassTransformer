@@ -12,6 +12,7 @@ class JassBot:
         self.hand_cards = []
         self.rejected_cards_this_turn = []
         self.last_cards_on_table = None
+        self.played_cards_history = []
         self.mode = "TRUMPF"
         self.trump_color = "SPADES"
 
@@ -115,6 +116,7 @@ class JassBot:
 
         elif msg_type == "DEAL_CARDS":
             self.hand_cards = data
+            self.played_cards_history = []
             cards_str = [f"{c.get('color')}_{c.get('number')}" for c in self.hand_cards]
             print(f"[{self.name}] Dealt cards: {cards_str}")
 
@@ -159,6 +161,8 @@ class JassBot:
         elif msg_type == "BROADCAST_STICH":
             stich_data = data
             played_cards = stich_data.get("playedCards", [])
+            if played_cards:
+                self.played_cards_history.append(played_cards)
             for pc in played_cards:
                 self.hand_cards = [c for c in self.hand_cards if not (c["number"] == pc["number"] and c["color"] == pc["color"])]
             cards_str = [f"{c.get('color')}_{c.get('number')}" for c in self.hand_cards]
