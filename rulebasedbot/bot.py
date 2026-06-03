@@ -161,8 +161,7 @@ class RuleBasedBot(JassBot):
                 # Throw the lowest value card (trash)
                 return valid_cards_sorted[0]
 
-def main():
+if __name__ == "__main__":
     main_func(RuleBasedBot)
 
-if __name__ == "__main__":
-    main()
+

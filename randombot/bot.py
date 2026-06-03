@@ -31,10 +31,10 @@ class RandomBot(JassBot):
             return random.choice(valid_cards)
 
 
-def main():
+if __name__ == "__main__":
     main_func(RandomBot)
 
-if __name__ == "__main__":
-    main()
+
+
 
 
