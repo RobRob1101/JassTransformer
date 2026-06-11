@@ -1,0 +1,69 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class JassTransformer(nn.Module):
+    def __init__(self, embed_dim=256, n_heads=8, n_layers=4):
+        super().__init__()
+        self.embed_dim = embed_dim
+        
+        # 1. Embedding Layers
+        self.card_embed = nn.Embedding(38, embed_dim)   # 36 cards + padding + hidden
+        self.player_embed = nn.Embedding(5, embed_dim) # 4 players + padding
+        self.trick_embed = nn.Embedding(10, embed_dim) # 9 tricks + padding
+        self.turn_embed = nn.Embedding(5, embed_dim)   # 4 turns + padding
+        self.mode_embed = nn.Embedding(7, embed_dim)   # game modes
+        
+        # 2. Transformer Backbone
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=embed_dim, 
+            nhead=n_heads, 
+            dim_feedforward=embed_dim * 4, 
+            batch_first=True,
+            dropout=0.1
+        )
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+        
+        # 3. Dual Heads
+        self.policy_head = nn.Linear(embed_dim, 36)  # Mapping to 36 potential card choices
+        self.value_head = nn.Linear(embed_dim, 1)    # State valuation for RL critic
+        
+    def forward(self, cards, players, tricks, turns, modes, legal_mask):
+        # Shape of inputs: (Batch, Seq_Len)
+        seq_len = cards.size(1)
+        
+        # Combine embeddings
+        x = (self.card_embed(cards) + 
+             self.player_embed(players) + 
+             self.trick_embed(tricks) + 
+             self.turn_embed(turns) +
+             self.mode_embed(modes)) # Shape: (Batch, Seq_Len, Embed_Dim)
+        
+        # Apply causal masking so future cards cannot bleed into the past
+        # PyTorch's native square subsequent mask
+        mask = nn.Transformer.generate_square_subsequent_mask(seq_len, device=x.device)
+        
+        # Pass through transformer
+        # For batch_first=True, src_mask is applied to the sequence length dimension
+        features = self.transformer(x, mask=mask, is_causal=True)
+        
+        # Extract the final token (the current state representation)
+        last_token_feature = features[:, -1, :] # Shape: (Batch, Embed_Dim)
+        
+        # Compute raw heads
+        raw_logits = self.policy_head(last_token_feature)
+        value = self.value_head(last_token_feature)
+        
+        # Apply Action Masking: Force illegal moves to -infinity
+        masked_logits = raw_logits.masked_fill(legal_mask == 0, float('-inf'))
+        
+        return masked_logits, value
+
+    def load_weights(self, path):
+        try:
+            self.load_state_dict(torch.load(path, map_location=torch.device('cpu')))
+            print(f"Successfully loaded weights from {path}")
+        except FileNotFoundError:
+            print(f"Warning: No weights found at {path}. Initializing with random weights.")
+        except Exception as e:
+            print(f"Error loading weights: {e}")
