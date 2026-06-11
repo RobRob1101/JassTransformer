@@ -164,6 +164,7 @@ class JassBot:
             if played_cards:
                 self.played_cards_history.append(played_cards)
             for pc in played_cards:
+                # remove the played card from hand
                 self.hand_cards = [c for c in self.hand_cards if not (c["number"] == pc["number"] and c["color"] == pc["color"])]
             cards_str = [f"{c.get('color')}_{c.get('number')}" for c in self.hand_cards]
             print(f"[{self.name}] Trick completed. Remaining hand: {cards_str}")

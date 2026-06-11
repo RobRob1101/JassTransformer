@@ -8,6 +8,7 @@ import torch
 from jassbot import JassBot, main_func
 from transformerbot.model import JassTransformer
 
+# translate cards to a unique index
 def get_card_id(card):
     colors = ["SPADES", "HEARTS", "DIAMONDS", "CLUBS"]
     try:
@@ -16,6 +17,7 @@ def get_card_id(card):
     except Exception:
         return 36 # Padding/Unknown
 
+# translate jass modes to a unique index
 def get_mode_id(mode, color):
     if mode == "OBEABE": return 0
     if mode == "UNDEUFE": return 1
@@ -32,7 +34,7 @@ class TransformerBot(JassBot):
     def __init__(self, name="TransformerBot", team_index=1, session_name=None, session_type="TOURNAMENT"):
         super().__init__(name=name, team_index=team_index, session_name=session_name, session_type=session_type)
         
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"[{self.name}] Initializing JassTransformer on {self.device}...")
         self.model = JassTransformer().to(self.device)
         
@@ -41,6 +43,7 @@ class TransformerBot(JassBot):
         self.model.load_weights(weights_path)
         self.model.eval()
 
+    # choose trumpf (random for now)
     def choose_trumpf(self):
         modes = ["OBEABE", "UNDEUFE", "TRUMPF", "SCHIEBE"]
         chosen_mode = random.choice(modes)
@@ -48,6 +51,7 @@ class TransformerBot(JassBot):
         if chosen_mode == "TRUMPF":
             color = random.choice(["CLUBS", "DIAMONDS", "HEARTS", "SPADES"])
         return chosen_mode, color
+
 
     def choose_card(self, cards_on_table, valid_cards, available_cards):
         if not valid_cards:
@@ -57,6 +61,9 @@ class TransformerBot(JassBot):
                 return random.choice(self.hand_cards)
             else:
                 return {"number": 14, "color": "DIAMONDS"}
+
+
+        print(f"[{self.name}] Choosing card. Table: {cards_on_table}, Valid: {valid_cards} (from {self.hand_cards})")
 
         # Construct sequence
         cards_seq = []
@@ -113,7 +120,10 @@ class TransformerBot(JassBot):
         for c in valid_cards:
             if get_card_id(c) == best_card_id:
                 return c
-                
+
+
+        print(f"[{self.name}] Fallback to random choice from valid cards: {valid_cards}")
+
         # Fallback if something goes wrong
         return random.choice(valid_cards)
 
