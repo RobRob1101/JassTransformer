@@ -18,9 +18,8 @@ class JassEnv:
         self.hands = [deck[i*9:(i+1)*9] for i in range(4)]
         self.current_player = random.randint(0, 3) # Who starts the first trick
         
-        self.played_cards_history = [] # list of lists of cards (0-35)
+        self.played_cards_history = [] # list of list of tuples (card, player_id)
         self.current_trick = []
-        self.current_trick_players = [] # Who played which card
         self.scores = [0, 0] # Team 0 (players 0,2), Team 1 (players 1,3)
         self.tricks_played = 0
         self.done = False
@@ -38,7 +37,7 @@ class JassEnv:
         if not self.current_trick:
             return list(hand)
             
-        lead_card = self.current_trick[0]
+        lead_card, _ = self.current_trick[0]
         lead_color = self._card_color(lead_card)
         
         legal = []
@@ -67,7 +66,7 @@ class JassEnv:
                         card_trump_index = trump_order.index(c_num)
                         
                         highest_trump_on_table_val = -1
-                        for tc in self.current_trick:
+                        for tc, _ in self.current_trick:
                             if self._card_color(tc) == self.trump_color:
                                 highest_trump_on_table_val = max(highest_trump_on_table_val, trump_order.index(self._card_number(tc)))
                                 
@@ -82,18 +81,29 @@ class JassEnv:
     def get_state(self, player_id):
         # Convert state to tensor sequence matching bot.py
         cards_seq, players_seq, tricks_seq, turns_seq = [], [], [], []
+
+
         
+
         for trick_idx, trick_cards in enumerate(self.played_cards_history):
-            for turn_idx, card in enumerate(trick_cards):
+            for turn_idx, card_info in enumerate(trick_cards):
+                card, p_id = card_info
+
+                p_id = (p_id - player_id) % 4
+                
                 cards_seq.append(card)
-                players_seq.append(0) # Keep simplified player tracking
+                players_seq.append(p_id)
                 tricks_seq.append(trick_idx)
                 turns_seq.append(turn_idx)
                 
         trick_idx = len(self.played_cards_history)
-        for turn_idx, card in enumerate(self.current_trick):
+        for turn_idx, card_info in enumerate(self.current_trick):
+            card, p_id = card_info
+
+            p_id = (p_id - player_id) % 4
+
             cards_seq.append(card)
-            players_seq.append(0)
+            players_seq.append(p_id)
             tricks_seq.append(trick_idx)
             turns_seq.append(turn_idx)
             
@@ -136,7 +146,7 @@ class JassEnv:
                 return vals.get(c_num, 0)
 
     def _evaluate_trick_winner(self):
-        lead_color = self._card_color(self.current_trick[0])
+        lead_color = self._card_color(self.current_trick[0][0])
         best_card_idx = 0
         
         def card_rank(card_id):
@@ -156,29 +166,31 @@ class JassEnv:
                 else:
                     return -1
 
-        best_rank = card_rank(self.current_trick[0])
+        best_rank = card_rank(self.current_trick[0][0])
         for i in range(1, 4):
-            rank = card_rank(self.current_trick[i])
+            rank = card_rank(self.current_trick[i][0])
             if rank > best_rank:
                 best_rank = rank
                 best_card_idx = i
                 
-        return self.current_trick_players[best_card_idx]
+        return self.current_trick[best_card_idx][1]
 
     def step(self, action):
         if action not in self.hands[self.current_player]:
             raise ValueError(f"Action {action} not in hand of player {self.current_player}")
             
         self.hands[self.current_player].remove(action)
-        self.current_trick.append(action)
-        self.current_trick_players.append(self.current_player)
         
+        self.current_trick.append( (action, self.current_player))
+
+
+
         rewards = [0, 0, 0, 0]
         
         if len(self.current_trick) == 4:
             # Trick over
             winner = self._evaluate_trick_winner()
-            trick_points = sum(self._card_value(c) for c in self.current_trick)
+            trick_points = sum(self._card_value(c[0]) for c in self.current_trick)
             
             self.tricks_played += 1
             if self.tricks_played == 9: # Last trick bonus
@@ -196,7 +208,6 @@ class JassEnv:
                     
             self.played_cards_history.append(self.current_trick)
             self.current_trick = []
-            self.current_trick_players = []
             self.current_player = winner
             
             if self.tricks_played == 9:

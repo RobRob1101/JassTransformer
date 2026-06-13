@@ -73,9 +73,10 @@ class TransformerBot(JassBot):
         
         # historical tricks
         for trick_idx, trick_cards in enumerate(self.played_cards_history):
-            for turn_idx, card in enumerate(trick_cards):
+            for turn_idx, card_info in enumerate(trick_cards):
+                card, player = card_info
                 cards_seq.append(get_card_id(card))
-                players_seq.append(0) # Player ID not fully tracked in base JassBot
+                players_seq.append(player) # Player ID not fully tracked in base JassBot
                 tricks_seq.append(trick_idx)
                 turns_seq.append(turn_idx)
         
@@ -83,13 +84,14 @@ class TransformerBot(JassBot):
         trick_idx = len(self.played_cards_history)
         for turn_idx, card in enumerate(cards_on_table):
             cards_seq.append(get_card_id(card))
-            players_seq.append(0)
+            rel_player = (turn_idx - len(cards_on_table)) % 4
+            players_seq.append(rel_player)
             tricks_seq.append(trick_idx)
             turns_seq.append(turn_idx)
             
         # Add a dummy token for the CURRENT action we have to take
         cards_seq.append(37) # 37 is hidden
-        players_seq.append(0)
+        players_seq.append(0) # Bot is always 0
         tricks_seq.append(trick_idx)
         turns_seq.append(len(cards_on_table))
 

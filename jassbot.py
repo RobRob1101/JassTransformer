@@ -12,7 +12,7 @@ class JassBot:
         self.hand_cards = []
         self.rejected_cards_this_turn = []
         self.last_cards_on_table = None
-        self.played_cards_history = []
+        self.played_cards_history = [] # list of list of tuples (card, player_id)
         self.mode = "TRUMPF"
         self.trump_color = "SPADES"
 
@@ -161,13 +161,33 @@ class JassBot:
         elif msg_type == "BROADCAST_STICH":
             stich_data = data
             played_cards = stich_data.get("playedCards", [])
-            if played_cards:
-                self.played_cards_history.append(played_cards)
-            for pc in played_cards:
-                # remove the played card from hand
-                self.hand_cards = [c for c in self.hand_cards if not (c["number"] == pc["number"] and c["color"] == pc["color"])]
+
+            if not played_cards:
+                return
+
+            # Find the turn index (0-3) within the trick where the bot played
+            bot_trick_idx = -1
+            for idx, pc in enumerate(played_cards):
+                if any(c["number"] == pc["number"] and c["color"] == pc["color"] for c in self.hand_cards):
+                    bot_trick_idx = idx
+                    bot_played_card = pc
+                    break
+
+            # Remove the bot's played card from hand
+            self.hand_cards = [c for c in self.hand_cards if not (c["number"] == bot_played_card["number"] and c["color"] == bot_played_card["color"])]
+
+            # Store trick history using relative player indices relative to the bot
+            new_played_cards = []
+            for i, pc in enumerate(played_cards):
+                rel_player_id = (i - bot_trick_idx) % 4 if bot_trick_idx != -1 else 0
+                new_played_cards.append((pc, rel_player_id))
+            
+            self.played_cards_history.append(new_played_cards)
+
             cards_str = [f"{c.get('color')}_{c.get('number')}" for c in self.hand_cards]
             print(f"[{self.name}] Trick completed. Remaining hand: {cards_str}")
+
+
 
     def on_error(self, ws, error):
         import traceback

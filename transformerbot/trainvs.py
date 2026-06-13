@@ -113,7 +113,7 @@ class VSTrainer:
                     self.opponent.trump_color = opp_trump
                     self.opponent.hand_cards = [get_card_from_id(c) for c in env.hands[current_p]]
 
-                    cards_on_table = [get_card_from_id(c) for c in env.current_trick]
+                    cards_on_table = [get_card_from_id(c[0]) for c in env.current_trick]
                     card = self.opponent.choose_card(cards_on_table, valid_cards_full, valid_cards_full)
                     action = get_card_id(card)
 
