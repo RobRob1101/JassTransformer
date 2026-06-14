@@ -10,8 +10,8 @@ class JassTransformer(nn.Module):
         # 1. Embedding Layers
         self.card_embed = nn.Embedding(38, embed_dim)   # 36 cards + padding + hidden
         self.player_embed = nn.Embedding(5, embed_dim) # 4 players + padding
-        self.trick_embed = nn.Embedding(10, embed_dim) # 9 tricks + padding
-        self.turn_embed = nn.Embedding(5, embed_dim)   # 4 turns + padding
+        self.trick_embed = nn.Embedding(11, embed_dim) # 9 tricks + hand cards + padding
+        self.turn_embed = nn.Embedding(6, embed_dim)   # 4 turns + hand cards + padding
         self.mode_embed = nn.Embedding(7, embed_dim)   # game modes
         
         # 2. Transformer Backbone

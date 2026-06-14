@@ -70,6 +70,13 @@ class TransformerBot(JassBot):
         players_seq = []
         tricks_seq = []
         turns_seq = []
+
+        # Prepend hand cards
+        for card in self.hand_cards:
+            cards_seq.append(get_card_id(card))
+            players_seq.append(0) # relative player id for self is always 0
+            tricks_seq.append(9)  # Special trick index 9 for hand cards
+            turns_seq.append(4)   # Special turn index 4 for hand cards
         
         # historical tricks
         for trick_idx, trick_cards in enumerate(self.played_cards_history):

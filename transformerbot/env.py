@@ -82,8 +82,12 @@ class JassEnv:
         # Convert state to tensor sequence matching bot.py
         cards_seq, players_seq, tricks_seq, turns_seq = [], [], [], []
 
-
-        
+        # Prepend hand cards
+        for card_id in self.hands[player_id]:
+            cards_seq.append(card_id)
+            players_seq.append(0) # relative player id for self is always 0
+            tricks_seq.append(9)  # Special trick index 9 for hand cards
+            turns_seq.append(4)   # Special turn index 4 for hand cards
 
         for trick_idx, trick_cards in enumerate(self.played_cards_history):
             for turn_idx, card_info in enumerate(trick_cards):
