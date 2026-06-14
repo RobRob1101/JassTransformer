@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class JassTransformer(nn.Module):
-    def __init__(self, embed_dim=256, n_heads=8, n_layers=4):
+    def __init__(self, embed_dim=128, n_heads=4, n_layers=2):
         super().__init__()
         self.embed_dim = embed_dim
         
@@ -39,13 +39,8 @@ class JassTransformer(nn.Module):
              self.turn_embed(turns) +
              self.mode_embed(modes)) # Shape: (Batch, Seq_Len, Embed_Dim)
         
-        # Apply causal masking so future cards cannot bleed into the past
-        # PyTorch's native square subsequent mask
-        mask = nn.Transformer.generate_square_subsequent_mask(seq_len, device=x.device)
-        
-        # Pass through transformer
-        # For batch_first=True, src_mask is applied to the sequence length dimension
-        features = self.transformer(x, mask=mask, is_causal=True)
+        # Pass through transformer using bidirectional attention over all known history/hand cards
+        features = self.transformer(x)
         
         # Extract the final token (the current state representation)
         last_token_feature = features[:, -1, :] # Shape: (Batch, Embed_Dim)
@@ -54,8 +49,8 @@ class JassTransformer(nn.Module):
         raw_logits = self.policy_head(last_token_feature)
         value = self.value_head(last_token_feature)
         
-        # Apply Action Masking: Force illegal moves to -infinity
-        masked_logits = raw_logits.masked_fill(legal_mask == 0, float('-inf'))
+        # Apply Action Masking: Force illegal moves to a large negative value to avoid NaN in entropy
+        masked_logits = raw_logits.masked_fill(legal_mask == 0, -1e9)
         
         return masked_logits, value
 

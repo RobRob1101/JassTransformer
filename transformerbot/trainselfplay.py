@@ -20,7 +20,7 @@ class PPOTrainer:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.model = JassTransformer().to(self.device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=1e-4)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=3e-4, weight_decay=1e-4)
         
         self.gamma = 0.99
         self.lam = 0.95
@@ -30,7 +30,7 @@ class PPOTrainer:
         # Self-play pool
         self.opponent_pool = []
         
-    def collect_trajectories(self, num_games=10):
+    def collect_trajectories(self, num_games=100):
         self.model.eval()
         
         # Play against previous models 20% of the time if available
@@ -76,6 +76,7 @@ class PPOTrainer:
                     player_transitions[current_p]["log_probs"].append(log_prob.item())
                     
                 next_state, rewards, done, _ = env.step(action.item())
+                rewards = [r / 100.0 for r in rewards]
                 
                 # Distribute rewards
                 if len(env.current_trick) == 0:
@@ -99,6 +100,7 @@ class PPOTrainer:
                         "state": player_transitions[i]["states"][step],
                         "action": player_transitions[i]["actions"][step],
                         "log_prob": player_transitions[i]["log_probs"][step],
+                        "value": player_transitions[i]["values"][step],
                         "return": returns[step],
                         "advantage": adv[step]
                     })
@@ -117,6 +119,12 @@ class PPOTrainer:
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         
+        # Compute explained variance of value predictions before update
+        values_np = np.array([t["value"] for t in trajectories])
+        returns_np = np.array([t["return"] for t in trajectories])
+        var_y = np.var(returns_np)
+        explained_var = 1.0 - np.var(returns_np - values_np) / (var_y + 1e-8) if var_y > 1e-8 else 0.0
+        
         # Group by sequence length to avoid padding issues
         from collections import defaultdict
         grouped = defaultdict(list)
@@ -124,6 +132,10 @@ class PPOTrainer:
             seq_len = states[idx]["cards"].size(1)
             grouped[seq_len].append(idx)
             
+        policy_losses = []
+        value_losses = []
+        entropies = []
+        
         for _ in range(self.ppo_epochs):
             # Shuffle keys for stochasticity
             seq_lengths = list(grouped.keys())
@@ -163,24 +175,31 @@ class PPOTrainer:
                     policy_loss = -torch.min(surr1, surr2).mean()
                     value_loss = 0.5 * (b_returns - value.squeeze(-1)).pow(2).mean()
                     
-                    loss = policy_loss + value_loss - 0.01 * entropy
+                    # Standard value loss weight of 0.5, and entropy coefficient of 0.05
+                    loss = policy_loss + 0.5 * value_loss - 0.05 * entropy
                     
                     self.optimizer.zero_grad()
                     loss.backward()
                     nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=0.5)
                     self.optimizer.step()
+                    
+                    policy_losses.append(policy_loss.item())
+                    value_losses.append(value_loss.item())
+                    entropies.append(entropy.item())
+                    
+        return np.mean(policy_losses), np.mean(value_losses), np.mean(entropies), explained_var
                 
     def train(self, iterations=1000):
         print(f"Starting PPO Self-Play Training on {self.device}...")
         for it in range(iterations):
-            trajectories = self.collect_trajectories(num_games=10) # Adjust batch size based on RAM
+            trajectories = self.collect_trajectories(num_games=100) # Adjust batch size based on RAM
             if not trajectories:
                 continue
                 
-            self.update(trajectories)
+            p_loss, v_loss, ent, exp_var = self.update(trajectories)
             
             avg_return = np.mean([t["return"] for t in trajectories])
-            print(f"Iteration {it+1}/{iterations} | Trajectories: {len(trajectories)} | Avg Return: {avg_return:.2f}")
+            print(f"Iteration {it+1}/{iterations} | Trajectories: {len(trajectories)} | Avg Return: {avg_return:.2f} | Policy Loss: {p_loss:.4f} | Value Loss: {v_loss:.4f} | Entropy: {ent:.4f} | Exp Var: {exp_var:.4f}")
             
             if (it + 1) % 50 == 0:
                 save_path = os.path.join(os.path.dirname(__file__), f"jass_transformer_v{it+1}.pt")
