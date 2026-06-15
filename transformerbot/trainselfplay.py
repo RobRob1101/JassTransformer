@@ -19,7 +19,7 @@ def compute_gae(rewards, values, gamma=0.99, lam=0.95):
 class PPOTrainer:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-        self.model = JassTransformer().to(self.device)
+        self.model = JassTransformer(embed_dim=256, n_heads=8, n_layers=4).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=3e-4, weight_decay=1e-4)
         
         self.gamma = 0.99
@@ -41,6 +41,8 @@ class PPOTrainer:
         else:
             opponent_model = self.model
             
+        # Only collect trajectories from opponent players (Team 1) when they play using the active model (on-policy)
+        players_to_collect = [0, 2] if use_pool else [0, 1, 2, 3]
         trajectories = []
         
         for _ in range(num_games):
@@ -69,7 +71,7 @@ class PPOTrainer:
                     action = dist.sample()
                     log_prob = dist.log_prob(action)
                     
-                if current_p % 2 == 0:
+                if current_p in players_to_collect:
                     player_transitions[current_p]["states"].append(state)
                     player_transitions[current_p]["actions"].append(action.item())
                     player_transitions[current_p]["values"].append(value.item())
@@ -85,8 +87,8 @@ class PPOTrainer:
                         
                 state = next_state
                 
-            # Process trajectories for Team 0
-            for i in [0, 2]:
+            # Process trajectories for selected players
+            for i in players_to_collect:
                 vals = player_transitions[i]["values"] + [0]
                 rews = player_transitions[i]["rewards"]
                 if len(rews) < len(vals)-1:
@@ -209,7 +211,7 @@ class PPOTrainer:
                 torch.save(self.model.state_dict(), os.path.join(os.path.dirname(__file__), "jass_transformer.pt"))
                 print(f"Saved checkpoint: {save_path}")
                 
-                old_model = JassTransformer().to(self.device)
+                old_model = JassTransformer(embed_dim=256, n_heads=8, n_layers=4).to(self.device)
                 old_model.load_state_dict(self.model.state_dict())
                 self.opponent_pool.append(old_model)
                 if len(self.opponent_pool) > 5:
