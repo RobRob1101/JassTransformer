@@ -192,7 +192,7 @@ class PPOTrainer:
     def train(self, iterations=1000):
         print(f"Starting PPO Self-Play Training on {self.device}...")
         for it in range(iterations):
-            trajectories = self.collect_trajectories(num_games=100) # Adjust batch size based on RAM
+            trajectories = self.collect_trajectories(num_games=250) # Adjust batch size based on RAM
             if not trajectories:
                 continue
                 
@@ -217,4 +217,4 @@ class PPOTrainer:
 
 if __name__ == "__main__":
     trainer = PPOTrainer()
-    trainer.train(iterations=200)
+    trainer.train(iterations=500)
