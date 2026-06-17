@@ -47,6 +47,10 @@ class VSTrainer:
         self.model = JassTransformer().to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=3e-4, weight_decay=1e-4)
         
+        # Try to load existing weights
+        weights_path = os.path.join(os.path.dirname(__file__), "jass_transformer.pt")
+        self.model.load_weights(weights_path)
+        
         self.gamma = 0.99
         self.lam = 0.95
         self.clip_ratio = 0.2
@@ -239,7 +243,7 @@ class VSTrainer:
     def train(self, iterations=1000):
         print(f"Starting Training vs. Rule Based Bot on {self.device}...")
         for it in range(iterations):
-            trajectories = self.collect_trajectories(num_games=250) # Adjust batch size based on RAM
+            trajectories = self.collect_trajectories(num_games=500) # Adjust batch size based on RAM
             if not trajectories:
                 continue
                 

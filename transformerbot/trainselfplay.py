@@ -19,8 +19,12 @@ def compute_gae(rewards, values, gamma=0.99, lam=0.95):
 class PPOTrainer:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
-        self.model = JassTransformer(embed_dim=256, n_heads=8, n_layers=4).to(self.device)
+        self.model = JassTransformer().to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=3e-4, weight_decay=1e-4)
+        
+        # Try to load existing weights
+        weights_path = os.path.join(os.path.dirname(__file__), "jass_transformer.pt")
+        self.model.load_weights(weights_path)
         
         self.gamma = 0.99
         self.lam = 0.95
@@ -211,7 +215,7 @@ class PPOTrainer:
                 torch.save(self.model.state_dict(), os.path.join(os.path.dirname(__file__), "jass_transformer.pt"))
                 print(f"Saved checkpoint: {save_path}")
                 
-                old_model = JassTransformer(embed_dim=256, n_heads=8, n_layers=4).to(self.device)
+                old_model = JassTransformer().to(self.device)
                 old_model.load_state_dict(self.model.state_dict())
                 self.opponent_pool.append(old_model)
                 if len(self.opponent_pool) > 5:
