@@ -67,10 +67,11 @@ class PPOTrainer:
                 t_idx = state["tricks"].to(self.device)
                 turn = state["turns"].to(self.device)
                 m = state["modes"].to(self.device)
+                s = state["scores"].to(self.device)
                 mask = state["legal_mask"].to(self.device)
                 
                 with torch.no_grad():
-                    logits, value = active_agent(c, p, t_idx, turn, m, mask)
+                    logits, value = active_agent(c, p, t_idx, turn, m, s, mask)
                     dist = Categorical(logits=logits[0])
                     action = dist.sample()
                     log_prob = dist.log_prob(action)
@@ -161,9 +162,10 @@ class PPOTrainer:
                     b_t_idx = torch.cat([states[idx]["tricks"] for idx in batch_idx], dim=0).to(self.device)
                     b_turn = torch.cat([states[idx]["turns"] for idx in batch_idx], dim=0).to(self.device)
                     b_m = torch.cat([states[idx]["modes"] for idx in batch_idx], dim=0).to(self.device)
+                    b_s = torch.cat([states[idx]["scores"] for idx in batch_idx], dim=0).to(self.device)
                     b_mask = torch.cat([states[idx]["legal_mask"] for idx in batch_idx], dim=0).to(self.device)
                     
-                    logits, value = self.model(b_c, b_p, b_t_idx, b_turn, b_m, b_mask)
+                    logits, value = self.model(b_c, b_p, b_t_idx, b_turn, b_m, b_s, b_mask)
                     
                     dist = Categorical(logits=logits)
                     b_actions = actions[batch_idx]

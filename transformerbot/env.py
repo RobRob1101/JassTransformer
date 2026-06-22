@@ -20,6 +20,7 @@ class JassEnv:
         
         self.played_cards_history = [] # list of list of tuples (card, player_id)
         self.current_trick = []
+        self.trick_scores = [] 
         self.scores = [0, 0] # Team 0 (players 0,2), Team 1 (players 1,3)
         self.tricks_played = 0
         self.done = False
@@ -80,7 +81,7 @@ class JassEnv:
 
     def get_state(self, player_id):
         # Convert state to tensor sequence matching bot.py
-        cards_seq, players_seq, tricks_seq, turns_seq = [], [], [], []
+        cards_seq, players_seq, tricks_seq, turns_seq, scores_seq = [], [], [], [], []
 
         # Prepend hand cards
         for card_id in self.hands[player_id]:
@@ -88,6 +89,7 @@ class JassEnv:
             players_seq.append(0) # relative player id for self is always 0
             tricks_seq.append(9)  # Special trick index 9 for hand cards
             turns_seq.append(4)   # Special turn index 4 for hand cards
+            scores_seq.append(0)
 
         for trick_idx, trick_cards in enumerate(self.played_cards_history):
             for turn_idx, card_info in enumerate(trick_cards):
@@ -99,6 +101,16 @@ class JassEnv:
                 players_seq.append(p_id)
                 tricks_seq.append(trick_idx)
                 turns_seq.append(turn_idx)
+                scores_seq.append(0)
+
+            cards_seq.append(37)
+            players_seq.append(0)
+            tricks_seq.append(trick_idx)
+            turns_seq.append(4)  
+            my_team = player_id % 2
+            opp_team = 1 - my_team
+            scores_seq.append(self.trick_scores[trick_idx][my_team] - self.trick_scores[trick_idx][opp_team])   
+
                 
         trick_idx = len(self.played_cards_history)
         for turn_idx, card_info in enumerate(self.current_trick):
@@ -110,12 +122,14 @@ class JassEnv:
             players_seq.append(p_id)
             tricks_seq.append(trick_idx)
             turns_seq.append(turn_idx)
+            scores_seq.append(0)
             
         # Action token
         cards_seq.append(37)
         players_seq.append(0)
         tricks_seq.append(trick_idx)
         turns_seq.append(len(self.current_trick))
+        scores_seq.append(0)
         
         legal_actions = self.get_legal_actions(player_id)
         legal_mask = [1.0 if i in legal_actions else 0.0 for i in range(36)]
@@ -125,6 +139,7 @@ class JassEnv:
             "players": torch.tensor([players_seq], dtype=torch.long),
             "tricks": torch.tensor([tricks_seq], dtype=torch.long),
             "turns": torch.tensor([turns_seq], dtype=torch.long),
+            "scores": torch.tensor([scores_seq], dtype=torch.long),
             "modes": torch.tensor([[self.mode] * len(cards_seq)], dtype=torch.long),
             "legal_mask": torch.tensor([legal_mask], dtype=torch.float32),
             "legal_actions": legal_actions,
@@ -202,6 +217,8 @@ class JassEnv:
                 
             winning_team = winner % 2
             self.scores[winning_team] += trick_points
+            self.trick_scores.append([0, 0])
+            self.trick_scores[-1][winning_team] += trick_points
             
             # Step reward: point differential gained
             for i in range(4):

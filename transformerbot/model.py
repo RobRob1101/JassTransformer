@@ -13,7 +13,11 @@ class JassTransformer(nn.Module):
         self.trick_embed = nn.Embedding(11, embed_dim) # 9 tricks + hand cards + padding
         self.turn_embed = nn.Embedding(6, embed_dim)   # 4 turns + hand cards + padding
         self.mode_embed = nn.Embedding(7, embed_dim)   # game modes
+
+        self.score_embed = nn.Linear(1, embed_dim, bias=False) # game modes
         
+
+
         # 2. Transformer Backbone
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=embed_dim, 
@@ -28,7 +32,7 @@ class JassTransformer(nn.Module):
         self.policy_head = nn.Linear(embed_dim, 36)  # Mapping to 36 potential card choices
         self.value_head = nn.Linear(embed_dim, 1)    # State valuation for RL critic
         
-    def forward(self, cards, players, tricks, turns, modes, legal_mask):
+    def forward(self, cards, players, tricks, turns, modes, scores, legal_mask):
         # Shape of inputs: (Batch, Seq_Len)
         seq_len = cards.size(1)
         
@@ -37,7 +41,8 @@ class JassTransformer(nn.Module):
              self.player_embed(players) + 
              self.trick_embed(tricks) + 
              self.turn_embed(turns) +
-             self.mode_embed(modes)) # Shape: (Batch, Seq_Len, Embed_Dim)
+             self.mode_embed(modes) +
+             self.score_embed(scores.unsqueeze(-1).float())) # Shape: (Batch, Seq_Len, Embed_Dim)
         
         # Pass through transformer using bidirectional attention over all known history/hand cards
         features = self.transformer(x)
