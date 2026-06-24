@@ -42,7 +42,7 @@ class JassTransformer(nn.Module):
              self.trick_embed(tricks) + 
              self.turn_embed(turns) +
              self.mode_embed(modes) +
-             self.score_embed(scores.unsqueeze(-1).float())) # Shape: (Batch, Seq_Len, Embed_Dim)
+             self.score_embed(scores.unsqueeze(-1).float() / 100.0)) # Shape: (Batch, Seq_Len, Embed_Dim)
         
         # Pass through transformer using bidirectional attention over all known history/hand cards
         features = self.transformer(x)
